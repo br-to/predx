@@ -24,6 +24,14 @@ enum Commands {
     },
 }
 
+fn truncate(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max - 3])
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
@@ -37,11 +45,13 @@ async fn main() -> anyhow::Result<()> {
 
             for m in &markets {
                 let results = m.search(&query).await?;
-                println!("--- {} ({} results) ---", m.name(), results.len());
+                println!("\n{} ({} results)", m.name(), results.len());
+                println!("{:<50}  {:>6}  {:>10}", "Title", "Prob", "Vol/24h");
+                println!("{}", "─".repeat(72));
                 for item in &results {
                     println!(
-                        "  {:50} {:>5.1}%  ${:.1}k/24h",
-                        item.title,
+                        "{:<50}  {:>5.1}%  {:>9.1}k",
+                        truncate(&item.title, 50),
                         item.probability * 100.0,
                         item.volume_24h / 1000.0,
                     );
