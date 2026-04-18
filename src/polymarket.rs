@@ -81,3 +81,23 @@ struct PolymarketMarket {
     #[serde(rename = "outcomePrices")]
     outcome_prices: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_yes_price_normal() {
+        assert_eq!(parse_yes_price(r#"["0.84", "0.16"]"#), 0.84);
+    }
+
+    #[test]
+    fn parse_yes_price_empty_array() {
+        assert_eq!(parse_yes_price("[]"), 0.0);
+    }
+
+    #[test]
+    fn parse_yes_price_invalid() {
+        assert_eq!(parse_yes_price("not json"), 0.0);
+    }
+}
