@@ -3,7 +3,6 @@ mod market;
 mod polymarket;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use terminal_size::terminal_size;
 
 use crate::kalshi::Kalshi;
 use crate::market::{Market, MarketItem};
@@ -46,35 +45,26 @@ enum Commands {
 }
 
 const GAP: &str = "  │  ";
-const STATS_WIDTH: usize = 16;
-const MIN_COL_WIDTH: usize = 30;
 
-fn col_width() -> usize {
-    let term_width = terminal_size().map(|(w, _)| w.0 as usize).unwrap_or(80);
-    ((term_width - GAP.len()) / 2).max(MIN_COL_WIDTH)
+fn title_width(items: &[MarketItem], limit: usize) -> usize {
+    items.iter().take(limit).map(|i| i.title.chars().count()).max().unwrap_or(0)
 }
 
-fn truncate(s: &str, max: usize) -> String {
-    if s.chars().count() <= max {
-        s.to_string()
-    } else {
-        let truncated: String = s.chars().take(max - 3).collect();
-        format!("{truncated}...")
-    }
-}
-
-fn format_item(item: &MarketItem, col_w: usize) -> String {
-    let title_w = col_w - STATS_WIDTH;
+fn format_item(item: &MarketItem, title_w: usize) -> String {
     format!(
-        "{:<title_w$} {:>5.1}%  {:>7.1}k",
-        truncate(&item.title, title_w),
+        "{:<title_w$}  {:>5.1}%  {:>7.1}k",
+        item.title,
         item.probability * 100.0,
         item.volume / 1000.0,
     )
 }
 
-fn format_empty(col_w: usize) -> String {
-    " ".repeat(col_w)
+fn col_width(title_w: usize) -> usize {
+    title_w + 16
+}
+
+fn format_empty(w: usize) -> String {
+    " ".repeat(w)
 }
 
 fn print_side_by_side(
@@ -84,9 +74,12 @@ fn print_side_by_side(
     right_items: &[MarketItem],
     limit: usize,
 ) {
-    let col_w = col_width();
     let left_shown = left_items.len().min(limit);
     let right_shown = right_items.len().min(limit);
+    let left_tw = title_width(left_items, limit);
+    let right_tw = title_width(right_items, limit);
+    let left_cw = col_width(left_tw);
+    let right_cw = col_width(right_tw);
 
     let left_header = format!(
         "{} ({}/{})",
@@ -96,41 +89,17 @@ fn print_side_by_side(
         "{} ({}/{})",
         right_name, right_shown, right_items.len()
     );
-    println!("\n{:<w$}{}{}", left_header, GAP, right_header, w = col_w);
-    println!("{}{}{}", "─".repeat(col_w), GAP, "─".repeat(col_w));
+    println!("\n{:<w$}{}{}", left_header, GAP, right_header, w = left_cw);
+    println!("{}{}{}", "─".repeat(left_cw), GAP, "─".repeat(right_cw));
 
     let rows = left_shown.max(right_shown);
     for i in 0..rows {
-        let left = left_items.get(i).map(|item| format_item(item, col_w)).unwrap_or_else(|| format_empty(col_w));
-        let right = right_items.get(i).map(|item| format_item(item, col_w)).unwrap_or_else(|| format_empty(col_w));
-        println!("{:<w$}{}{}", left, GAP, right, w = col_w);
+        let left = left_items.get(i).map(|i| format_item(i, left_tw)).unwrap_or_else(|| format_empty(left_cw));
+        let right = right_items.get(i).map(|i| format_item(i, right_tw)).unwrap_or_else(|| format_empty(right_cw));
+        println!("{:<w$}{}{}", left, GAP, right, w = left_cw);
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn truncate_short_string() {
-        assert_eq!(truncate("hello", 10), "hello");
-    }
-
-    #[test]
-    fn truncate_exact_length() {
-        assert_eq!(truncate("hello", 5), "hello");
-    }
-
-    #[test]
-    fn truncate_long_string() {
-        assert_eq!(truncate("hello world", 8), "hello...");
-    }
-
-    #[test]
-    fn truncate_multibyte() {
-        assert_eq!(truncate("51st state — Puerto Rico", 20), "51st state — Puer...");
-    }
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
