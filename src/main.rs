@@ -39,7 +39,12 @@ async fn main() -> anyhow::Result<()> {
                 let results = m.search(&query).await?;
                 println!("--- {} ({} results) ---", m.name(), results.len());
                 for item in &results {
-                    println!("  {:50} {:>5.1}%", item.title, item.probability * 100.0);
+                    println!(
+                        "  {:50} {:>5.1}%  ${:.1}k/24h",
+                        item.title,
+                        item.probability * 100.0,
+                        item.volume_24h / 1000.0,
+                    );
                 }
             }
 

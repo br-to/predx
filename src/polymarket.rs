@@ -37,12 +37,17 @@ impl Market for Polymarket {
 
         let mut items = Vec::new();
         for event in resp.events {
+            let vol_per_market = if event.markets.is_empty() {
+                0.0
+            } else {
+                event.volume24hr / event.markets.len() as f64
+            };
             for market in event.markets {
                 let probability = parse_yes_price(&market.outcome_prices);
                 items.push(MarketItem {
                     title: market.question,
                     probability,
-                    volume_24h: market.volume_24hr,
+                    volume_24h: vol_per_market,
                 });
             }
         }
@@ -65,6 +70,8 @@ struct SearchResponse {
 
 #[derive(Deserialize)]
 struct Event {
+    #[serde(default)]
+    volume24hr: f64,
     markets: Vec<PolymarketMarket>,
 }
 
@@ -73,6 +80,4 @@ struct PolymarketMarket {
     question: String,
     #[serde(rename = "outcomePrices")]
     outcome_prices: String,
-    #[serde(default)]
-    volume_24hr: f64,
 }
