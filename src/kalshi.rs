@@ -4,9 +4,9 @@ use serde::Deserialize;
 
 use crate::market::{Market, MarketItem};
 
-const EVENTS_URL: &str = "https://api.elections.kalshi.com/trade-api/v2/events";
-const PAGE_LIMIT: u32 = 200;
-const MAX_PAGES: u32 = 5;
+const SEARCH_URL: &str =
+    "https://api.elections.kalshi.com/v1/search/series";
+const PAGE_SIZE: u32 = 24;
 
 pub struct Kalshi {
     client: reqwest::Client,
@@ -27,76 +27,59 @@ impl Market for Kalshi {
     }
 
     async fn search(&self, query: &str) -> Result<Vec<MarketItem>> {
-        let query_lower = query.to_lowercase();
+        let resp: SearchResponse = self
+            .client
+            .get(SEARCH_URL)
+            .query(&[
+                ("query", query),
+                ("order_by", "querymatch"),
+                ("reverse", "false"),
+                ("page_size", &PAGE_SIZE.to_string()),
+            ])
+            .send()
+            .await?
+            .json()
+            .await?;
+
         let mut items = Vec::new();
-        let mut cursor: Option<String> = None;
-
-        for _ in 0..MAX_PAGES {
-            let mut req = self
-                .client
-                .get(EVENTS_URL)
-                .query(&[
-                    ("status", "open"),
-                    ("with_nested_markets", "true"),
-                    ("limit", &PAGE_LIMIT.to_string()),
-                ]);
-
-            if let Some(ref c) = cursor {
-                req = req.query(&[("cursor", c.as_str())]);
+        for contract in resp.current_page {
+            for market in contract.markets {
+                let probability = market.last_price as f64 / 100.0;
+                let volume_24h = market.volume as f64;
+                let title = if market.yes_subtitle.is_empty() {
+                    contract.event_title.clone()
+                } else {
+                    format!("{} — {}", contract.event_title, market.yes_subtitle)
+                };
+                items.push(MarketItem {
+                    title,
+                    probability,
+                    volume_24h,
+                });
             }
-
-            let resp: EventsResponse = req.send().await?.json().await?;
-
-            for event in &resp.events {
-                let title_match = event.title.to_lowercase().contains(&query_lower);
-                for market in &event.markets {
-                    if title_match || market.title.to_lowercase().contains(&query_lower) {
-                        let probability = market
-                            .last_price_dollars
-                            .parse::<f64>()
-                            .unwrap_or(0.0);
-                        let volume_24h = market
-                            .volume_24h_fp
-                            .parse::<f64>()
-                            .unwrap_or(0.0);
-                        items.push(MarketItem {
-                            title: market.title.clone(),
-                            probability,
-                            volume_24h,
-                        });
-                    }
-                }
-            }
-
-            if resp.cursor.is_empty() {
-                break;
-            }
-            cursor = Some(resp.cursor);
         }
-
         Ok(items)
     }
 }
 
 #[derive(Deserialize)]
-struct EventsResponse {
-    #[serde(default)]
-    cursor: String,
-    events: Vec<KalshiEvent>,
+struct SearchResponse {
+    current_page: Vec<Contract>,
 }
 
 #[derive(Deserialize)]
-struct KalshiEvent {
-    title: String,
+struct Contract {
+    event_title: String,
     #[serde(default)]
     markets: Vec<KalshiMarket>,
 }
 
 #[derive(Deserialize)]
 struct KalshiMarket {
-    title: String,
     #[serde(default)]
-    last_price_dollars: String,
+    last_price: u32,
     #[serde(default)]
-    volume_24h_fp: String,
+    volume: u64,
+    #[serde(default)]
+    yes_subtitle: String,
 }
