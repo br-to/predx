@@ -24,6 +24,34 @@ enum Commands {
     },
 }
 
+fn truncate(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max - 3])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncate_short_string() {
+        assert_eq!(truncate("hello", 10), "hello");
+    }
+
+    #[test]
+    fn truncate_exact_length() {
+        assert_eq!(truncate("hello", 5), "hello");
+    }
+
+    #[test]
+    fn truncate_long_string() {
+        assert_eq!(truncate("hello world", 8), "hello...");
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
@@ -37,9 +65,16 @@ async fn main() -> anyhow::Result<()> {
 
             for m in &markets {
                 let results = m.search(&query).await?;
-                println!("--- {} ({} results) ---", m.name(), results.len());
+                println!("\n{} ({} results)", m.name(), results.len());
+                println!("{:<50}  {:>6}  {:>10}", "Title", "Prob", "Vol/24h");
+                println!("{}", "─".repeat(72));
                 for item in &results {
-                    println!("  {:50} {:>5.1}%", item.title, item.probability * 100.0);
+                    println!(
+                        "{:<50}  {:>5.1}%  {:>9.1}k",
+                        truncate(&item.title, 50),
+                        item.probability * 100.0,
+                        item.volume_24h / 1000.0,
+                    );
                 }
             }
 
