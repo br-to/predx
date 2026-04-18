@@ -5,7 +5,7 @@ mod polymarket;
 use clap::{Parser, Subcommand};
 
 use crate::kalshi::Kalshi;
-use crate::market::Market;
+use crate::market::{Market, MarketItem};
 use crate::polymarket::Polymarket;
 
 #[derive(Parser)]
@@ -28,12 +28,58 @@ enum Commands {
     },
 }
 
+const COL_WIDTH: usize = 38;
+const GAP: &str = "  │  ";
+
 fn truncate(s: &str, max: usize) -> String {
     if s.chars().count() <= max {
         s.to_string()
     } else {
         let truncated: String = s.chars().take(max - 3).collect();
         format!("{truncated}...")
+    }
+}
+
+fn format_item(item: &MarketItem) -> String {
+    format!(
+        "{:<title_w$} {:>5.1}%  {:>7.1}k",
+        truncate(&item.title, COL_WIDTH - 16),
+        item.probability * 100.0,
+        item.volume / 1000.0,
+        title_w = COL_WIDTH - 16,
+    )
+}
+
+fn format_empty() -> String {
+    " ".repeat(COL_WIDTH)
+}
+
+fn print_side_by_side(
+    left_name: &str,
+    left_items: &[MarketItem],
+    right_name: &str,
+    right_items: &[MarketItem],
+    limit: usize,
+) {
+    let left_shown = left_items.len().min(limit);
+    let right_shown = right_items.len().min(limit);
+
+    let left_header = format!(
+        "{} ({}/{})",
+        left_name, left_shown, left_items.len()
+    );
+    let right_header = format!(
+        "{} ({}/{})",
+        right_name, right_shown, right_items.len()
+    );
+    println!("\n{:<w$}{}{}", left_header, GAP, right_header, w = COL_WIDTH);
+    println!("{}{}{}", "─".repeat(COL_WIDTH), GAP, "─".repeat(COL_WIDTH));
+
+    let rows = left_shown.max(right_shown);
+    for i in 0..rows {
+        let left = left_items.get(i).map(format_item).unwrap_or_else(format_empty);
+        let right = right_items.get(i).map(format_item).unwrap_or_else(format_empty);
+        println!("{:<w$}{}{}", left, GAP, right, w = COL_WIDTH);
     }
 }
 
@@ -69,26 +115,20 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::Search { query, limit } => {
             let limit = limit.clamp(1, 100);
-            let markets: Vec<Box<dyn Market>> = vec![
-                Box::new(Polymarket::new()),
-                Box::new(Kalshi::new()),
-            ];
 
-            for m in &markets {
-                let results = m.search(&query).await?;
-                let shown = results.len().min(limit);
-                println!("\n{} ({}/{} results)", m.name(), shown, results.len());
-                println!("{:<50}  {:>6}  {:>10}", "Title", "Prob", "Volume");
-                println!("{}", "─".repeat(72));
-                for item in results.iter().take(limit) {
-                    println!(
-                        "{:<50}  {:>5.1}%  {:>9.1}k",
-                        truncate(&item.title, 50),
-                        item.probability * 100.0,
-                        item.volume / 1000.0,
-                    );
-                }
-            }
+            let poly = Polymarket::new();
+            let kal = Kalshi::new();
+
+            let (poly_res, kal_res) =
+                tokio::try_join!(poly.search(&query), kal.search(&query))?;
+
+            print_side_by_side(
+                poly.name(),
+                &poly_res,
+                kal.name(),
+                &kal_res,
+                limit,
+            );
 
             Ok(())
         }
