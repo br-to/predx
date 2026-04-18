@@ -22,7 +22,7 @@ enum Commands {
         /// Search query (e.g. "trump", "bitcoin")
         query: String,
 
-        /// Max results per platform (default: 20)
+        /// Max results per platform (1-100, default: 20)
         #[arg(short, long, default_value_t = 20)]
         limit: usize,
     },
@@ -68,6 +68,7 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Search { query, limit } => {
+            let limit = limit.clamp(1, 100);
             let markets: Vec<Box<dyn Market>> = vec![
                 Box::new(Polymarket::new()),
                 Box::new(Kalshi::new()),
