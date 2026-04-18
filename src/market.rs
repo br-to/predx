@@ -6,7 +6,7 @@ use async_trait::async_trait;
 pub struct MarketItem {
     pub title: String,
     pub probability: f64,
-    pub volume_24h: f64,
+    pub volume: f64,
 }
 
 /// Polymarket/Kalshi両方が実装する統一インターフェース
