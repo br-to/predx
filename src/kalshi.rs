@@ -55,6 +55,7 @@ impl Market for Kalshi {
                     title,
                     probability,
                     volume,
+                    active: market.result.is_empty(),
                 });
             }
         }
@@ -82,4 +83,6 @@ struct KalshiMarket {
     volume: u64,
     #[serde(default)]
     yes_subtitle: String,
+    #[serde(default)]
+    result: String,
 }

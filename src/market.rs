@@ -7,6 +7,7 @@ pub struct MarketItem {
     pub title: String,
     pub probability: f64,
     pub volume: f64,
+    pub active: bool,
 }
 
 /// Polymarket/Kalshi両方が実装する統一インターフェース
