@@ -43,6 +43,7 @@ impl Market for Polymarket {
                     title: market.question,
                     probability,
                     volume: market.volume.parse::<f64>().unwrap_or(0.0),
+                    active: market.active && !market.closed,
                 });
             }
         }
@@ -75,6 +76,10 @@ struct PolymarketMarket {
     outcome_prices: String,
     #[serde(default)]
     volume: String,
+    #[serde(default)]
+    active: bool,
+    #[serde(default)]
+    closed: bool,
 }
 
 #[cfg(test)]

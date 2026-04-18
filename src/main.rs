@@ -37,6 +37,10 @@ enum Commands {
         /// Sort results by: volume, prob
         #[arg(short, long, default_value = "volume")]
         sort: SortKey,
+
+        /// Include resolved/closed markets
+        #[arg(long)]
+        inactive: bool,
     },
 }
 
@@ -125,7 +129,7 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Search { query, limit, sort } => {
+        Commands::Search { query, limit, sort, inactive } => {
             let limit = limit.clamp(1, 100);
 
             let poly = Polymarket::new();
@@ -133,6 +137,11 @@ async fn main() -> anyhow::Result<()> {
 
             let (mut poly_res, mut kal_res) =
                 tokio::try_join!(poly.search(&query), kal.search(&query))?;
+
+            if !inactive {
+                poly_res.retain(|item| item.active);
+                kal_res.retain(|item| item.active);
+            }
 
             let comparator: fn(&MarketItem, &MarketItem) -> std::cmp::Ordering = match sort {
                 SortKey::Volume => |a, b| b.volume.partial_cmp(&a.volume).unwrap_or(std::cmp::Ordering::Equal),
