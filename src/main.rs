@@ -2,7 +2,7 @@ mod kalshi;
 mod market;
 mod polymarket;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 use crate::kalshi::Kalshi;
 use crate::market::{Market, MarketItem};
@@ -15,6 +15,14 @@ struct Cli {
     command: Commands,
 }
 
+#[derive(Clone, ValueEnum)]
+enum SortKey {
+    /// Sort by trading volume (default)
+    Volume,
+    /// Sort by probability (highest first)
+    Prob,
+}
+
 #[derive(Subcommand)]
 enum Commands {
     /// Search markets by keyword
@@ -25,6 +33,10 @@ enum Commands {
         /// Max results per platform (1-100, default: 20)
         #[arg(short, long, default_value_t = 20)]
         limit: usize,
+
+        /// Sort results by: volume, prob
+        #[arg(short, long, default_value = "volume")]
+        sort: SortKey,
     },
 }
 
@@ -113,14 +125,21 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Search { query, limit } => {
+        Commands::Search { query, limit, sort } => {
             let limit = limit.clamp(1, 100);
 
             let poly = Polymarket::new();
             let kal = Kalshi::new();
 
-            let (poly_res, kal_res) =
+            let (mut poly_res, mut kal_res) =
                 tokio::try_join!(poly.search(&query), kal.search(&query))?;
+
+            let comparator: fn(&MarketItem, &MarketItem) -> std::cmp::Ordering = match sort {
+                SortKey::Volume => |a, b| b.volume.partial_cmp(&a.volume).unwrap_or(std::cmp::Ordering::Equal),
+                SortKey::Prob => |a, b| b.probability.partial_cmp(&a.probability).unwrap_or(std::cmp::Ordering::Equal),
+            };
+            poly_res.sort_by(comparator);
+            kal_res.sort_by(comparator);
 
             print_side_by_side(
                 poly.name(),
