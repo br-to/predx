@@ -76,7 +76,8 @@ async fn main() -> anyhow::Result<()> {
 
             for m in &markets {
                 let results = m.search(&query).await?;
-                println!("\n{} ({} results)", m.name(), results.len());
+                let shown = results.len().min(limit);
+                println!("\n{} ({}/{} results)", m.name(), shown, results.len());
                 println!("{:<50}  {:>6}  {:>10}", "Title", "Prob", "Volume");
                 println!("{}", "─".repeat(72));
                 for item in results.iter().take(limit) {
