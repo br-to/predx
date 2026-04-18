@@ -3,6 +3,7 @@ mod market;
 mod polymarket;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use terminal_size::terminal_size;
 
 use crate::kalshi::Kalshi;
 use crate::market::{Market, MarketItem};
@@ -44,8 +45,14 @@ enum Commands {
     },
 }
 
-const COL_WIDTH: usize = 38;
 const GAP: &str = "  │  ";
+const STATS_WIDTH: usize = 16;
+const MIN_COL_WIDTH: usize = 30;
+
+fn col_width() -> usize {
+    let term_width = terminal_size().map(|(w, _)| w.0 as usize).unwrap_or(80);
+    ((term_width - GAP.len()) / 2).max(MIN_COL_WIDTH)
+}
 
 fn truncate(s: &str, max: usize) -> String {
     if s.chars().count() <= max {
@@ -56,18 +63,18 @@ fn truncate(s: &str, max: usize) -> String {
     }
 }
 
-fn format_item(item: &MarketItem) -> String {
+fn format_item(item: &MarketItem, col_w: usize) -> String {
+    let title_w = col_w - STATS_WIDTH;
     format!(
         "{:<title_w$} {:>5.1}%  {:>7.1}k",
-        truncate(&item.title, COL_WIDTH - 16),
+        truncate(&item.title, title_w),
         item.probability * 100.0,
         item.volume / 1000.0,
-        title_w = COL_WIDTH - 16,
     )
 }
 
-fn format_empty() -> String {
-    " ".repeat(COL_WIDTH)
+fn format_empty(col_w: usize) -> String {
+    " ".repeat(col_w)
 }
 
 fn print_side_by_side(
@@ -77,6 +84,7 @@ fn print_side_by_side(
     right_items: &[MarketItem],
     limit: usize,
 ) {
+    let col_w = col_width();
     let left_shown = left_items.len().min(limit);
     let right_shown = right_items.len().min(limit);
 
@@ -88,14 +96,14 @@ fn print_side_by_side(
         "{} ({}/{})",
         right_name, right_shown, right_items.len()
     );
-    println!("\n{:<w$}{}{}", left_header, GAP, right_header, w = COL_WIDTH);
-    println!("{}{}{}", "─".repeat(COL_WIDTH), GAP, "─".repeat(COL_WIDTH));
+    println!("\n{:<w$}{}{}", left_header, GAP, right_header, w = col_w);
+    println!("{}{}{}", "─".repeat(col_w), GAP, "─".repeat(col_w));
 
     let rows = left_shown.max(right_shown);
     for i in 0..rows {
-        let left = left_items.get(i).map(format_item).unwrap_or_else(format_empty);
-        let right = right_items.get(i).map(format_item).unwrap_or_else(format_empty);
-        println!("{:<w$}{}{}", left, GAP, right, w = COL_WIDTH);
+        let left = left_items.get(i).map(|item| format_item(item, col_w)).unwrap_or_else(|| format_empty(col_w));
+        let right = right_items.get(i).map(|item| format_item(item, col_w)).unwrap_or_else(|| format_empty(col_w));
+        println!("{:<w$}{}{}", left, GAP, right, w = col_w);
     }
 }
 
