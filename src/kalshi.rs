@@ -45,7 +45,7 @@ impl Market for Kalshi {
         for contract in resp.current_page {
             for market in contract.markets {
                 let probability = market.last_price as f64 / 100.0;
-                let volume_24h = market.volume as f64;
+                let volume = market.volume as f64;
                 let title = if market.yes_subtitle.is_empty() {
                     contract.event_title.clone()
                 } else {
@@ -54,7 +54,7 @@ impl Market for Kalshi {
                 items.push(MarketItem {
                     title,
                     probability,
-                    volume_24h,
+                    volume,
                 });
             }
         }

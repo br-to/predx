@@ -66,14 +66,14 @@ async fn main() -> anyhow::Result<()> {
             for m in &markets {
                 let results = m.search(&query).await?;
                 println!("\n{} ({} results)", m.name(), results.len());
-                println!("{:<50}  {:>6}  {:>10}", "Title", "Prob", "Vol/24h");
+                println!("{:<50}  {:>6}  {:>10}", "Title", "Prob", "Volume");
                 println!("{}", "─".repeat(72));
                 for item in &results {
                     println!(
                         "{:<50}  {:>5.1}%  {:>9.1}k",
                         truncate(&item.title, 50),
                         item.probability * 100.0,
-                        item.volume_24h / 1000.0,
+                        item.volume / 1000.0,
                     );
                 }
             }
