@@ -60,8 +60,12 @@ enum Commands {
 
     /// Watch markets and report when probability changes exceed a threshold
     Watch {
-        /// Search query (e.g. "trump 2028")
-        query: String,
+        /// Search query (e.g. "trump 2028"). Omit when using --market-id
+        query: Option<String>,
+
+        /// Track specific markets. Format: "polymarket:<id>" or "kalshi:<ticker>". Repeatable
+        #[arg(short, long = "market-id")]
+        market_ids: Vec<String>,
 
         /// Polling interval in seconds
         #[arg(short, long, default_value_t = 60)]
@@ -71,7 +75,7 @@ enum Commands {
         #[arg(short, long, default_value_t = 5.0)]
         threshold: f64,
 
-        /// Number of top markets per platform to watch
+        /// Number of top markets per platform to watch (query mode only)
         #[arg(short, long, default_value_t = 5)]
         limit: usize,
 
@@ -232,14 +236,29 @@ async fn main() -> anyhow::Result<()> {
 
             Ok(())
         }
-        Commands::Watch { query, interval, threshold, limit, duration, webhook, log } => {
+        Commands::Watch { query, market_ids, interval, threshold, limit, duration, webhook, log } => {
             let limit = limit.clamp(1, 100);
             let interval = interval.max(1);
+
+            let target = match (query, market_ids.is_empty()) {
+                (Some(q), true) => watch::WatchTarget::Query { query: q, limit },
+                (None, false) => {
+                    let ids: Result<Vec<_>, _> =
+                        market_ids.iter().map(|s| watch::parse_market_id(s)).collect();
+                    watch::WatchTarget::Ids(ids?)
+                }
+                (Some(_), false) => anyhow::bail!(
+                    "specify either a search query or --market-id, not both",
+                ),
+                (None, true) => anyhow::bail!(
+                    "specify a search query or at least one --market-id",
+                ),
+            };
+
             watch::run(watch::WatchOptions {
-                query,
+                target,
                 interval,
                 threshold,
-                limit,
                 duration,
                 webhook,
                 log,

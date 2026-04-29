@@ -4,8 +4,8 @@ use serde::Deserialize;
 
 use crate::market::{Market, MarketItem};
 
-const SEARCH_URL: &str =
-    "https://api.elections.kalshi.com/v1/search/series";
+const SEARCH_URL: &str = "https://api.elections.kalshi.com/v1/search/series";
+const MARKET_URL: &str = "https://api.elections.kalshi.com/trade-api/v2/markets";
 const PAGE_SIZE: u32 = 24;
 
 pub struct Kalshi {
@@ -63,6 +63,48 @@ impl Market for Kalshi {
         }
         Ok(items)
     }
+
+    async fn get_by_id(&self, id: &str) -> Result<MarketItem> {
+        let url = format!("{}/{}", MARKET_URL, id);
+        let resp: V2MarketResponse = self.client.get(&url).send().await?.json().await?;
+        let m = resp.market;
+        let probability = m.last_price_dollars.parse::<f64>().unwrap_or(0.0);
+        let volume = m.volume_fp.parse::<f64>().unwrap_or(0.0);
+        let title = if m.yes_sub_title.is_empty() {
+            m.title
+        } else {
+            format!("{} — {}", m.title, m.yes_sub_title)
+        };
+        Ok(MarketItem {
+            id: m.ticker,
+            platform: "kalshi",
+            title,
+            probability,
+            volume,
+            active: m.status == "active",
+        })
+    }
+}
+
+#[derive(Deserialize)]
+struct V2MarketResponse {
+    market: V2Market,
+}
+
+#[derive(Deserialize)]
+struct V2Market {
+    #[serde(default)]
+    ticker: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    yes_sub_title: String,
+    #[serde(default)]
+    last_price_dollars: String,
+    #[serde(default)]
+    volume_fp: String,
+    #[serde(default)]
+    status: String,
 }
 
 #[derive(Deserialize)]
