@@ -34,6 +34,9 @@ predx watch "trump 2028" --interval 60 --threshold 5 --limit 5
 # Discord / Slack webhook に変動アラートを飛ばす
 predx watch "bitcoin" --threshold 3 --webhook https://discord.com/api/webhooks/...
 predx watch "bitcoin" --threshold 3 --webhook https://hooks.slack.com/services/...
+
+# ファイルに追記記録（baseline とアラートをすべて残す）
+predx watch "trump 2028" --log predx.log
 ```
 
 ### 出力例
