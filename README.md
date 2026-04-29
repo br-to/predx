@@ -37,6 +37,9 @@ predx watch "bitcoin" --threshold 3 --webhook https://hooks.slack.com/services/.
 
 # ファイルに追記記録（baseline とアラートをすべて残す）
 predx watch "trump 2028" --log predx.log
+
+# 特定マーケットをID指定で追跡（複数指定可・プラットフォーム混在可）
+predx watch -m polymarket:1733817 -m kalshi:KXPRESNOMD-28-GN
 ```
 
 ### 出力例

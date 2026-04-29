@@ -12,14 +12,38 @@ use crate::kalshi::Kalshi;
 use crate::market::{Market, MarketItem};
 use crate::polymarket::Polymarket;
 
+pub enum WatchTarget {
+    Query { query: String, limit: usize },
+    Ids(Vec<MarketId>),
+}
+
+pub struct MarketId {
+    pub platform: String,
+    pub id: String,
+}
+
 pub struct WatchOptions {
-    pub query: String,
+    pub target: WatchTarget,
     pub interval: u64,
     pub threshold: f64,
-    pub limit: usize,
     pub duration: Option<u64>,
     pub webhook: Option<String>,
     pub log: Option<PathBuf>,
+}
+
+pub fn parse_market_id(raw: &str) -> Result<MarketId> {
+    let (platform, id) = raw
+        .split_once(':')
+        .with_context(|| format!("invalid --market-id \"{}\" (expected platform:id)", raw))?;
+    let platform = platform.trim().to_ascii_lowercase();
+    let id = id.trim().to_string();
+    if !matches!(platform.as_str(), "polymarket" | "kalshi") {
+        anyhow::bail!("unknown platform \"{}\": use polymarket or kalshi", platform);
+    }
+    if id.is_empty() {
+        anyhow::bail!("market id cannot be empty");
+    }
+    Ok(MarketId { platform, id })
 }
 
 fn append_log(path: &PathBuf, line: &str) -> Result<()> {
@@ -66,10 +90,18 @@ pub async fn run(opts: WatchOptions) -> Result<()> {
     let mut prev: HashMap<String, f64> = HashMap::new();
     let mut tick = 0u64;
 
-    println!(
-        "# watching \"{}\" — interval={}s threshold={}% limit={}",
-        opts.query, opts.interval, opts.threshold, opts.limit,
-    );
+    match &opts.target {
+        WatchTarget::Query { query, limit } => println!(
+            "# watching \"{}\" — interval={}s threshold={}% limit={}",
+            query, opts.interval, opts.threshold, limit,
+        ),
+        WatchTarget::Ids(ids) => println!(
+            "# watching {} market(s) — interval={}s threshold={}%",
+            ids.len(),
+            opts.interval,
+            opts.threshold,
+        ),
+    }
     if let Some(d) = opts.duration {
         println!("# stop after {} minute(s)", d);
     }
@@ -82,7 +114,7 @@ pub async fn run(opts: WatchOptions) -> Result<()> {
     println!("# press Ctrl+C to stop");
 
     loop {
-        let snapshot = fetch_snapshot(&poly, &kal, &opts.query, opts.limit).await;
+        let snapshot = fetch_snapshot(&poly, &kal, &opts.target).await;
         match snapshot {
             Ok(items) => {
                 let now = chrono_now();
@@ -152,24 +184,43 @@ pub async fn run(opts: WatchOptions) -> Result<()> {
 async fn fetch_snapshot(
     poly: &Polymarket,
     kal: &Kalshi,
-    query: &str,
-    limit: usize,
+    target: &WatchTarget,
 ) -> Result<Vec<MarketItem>> {
-    let (mut poly_res, mut kal_res) = tokio::try_join!(poly.search(query), kal.search(query))?;
-    poly_res.retain(|item| item.active);
-    kal_res.retain(|item| item.active);
+    match target {
+        WatchTarget::Query { query, limit } => {
+            let (mut poly_res, mut kal_res) =
+                tokio::try_join!(poly.search(query), kal.search(query))?;
+            poly_res.retain(|item| item.active);
+            kal_res.retain(|item| item.active);
 
-    let cmp = |a: &MarketItem, b: &MarketItem| {
-        b.volume
-            .partial_cmp(&a.volume)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    };
-    poly_res.sort_by(cmp);
-    kal_res.sort_by(cmp);
+            let cmp = |a: &MarketItem, b: &MarketItem| {
+                b.volume
+                    .partial_cmp(&a.volume)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            };
+            poly_res.sort_by(cmp);
+            kal_res.sort_by(cmp);
 
-    let mut items: Vec<MarketItem> = poly_res.into_iter().take(limit).collect();
-    items.extend(kal_res.into_iter().take(limit));
-    Ok(items)
+            let mut items: Vec<MarketItem> = poly_res.into_iter().take(*limit).collect();
+            items.extend(kal_res.into_iter().take(*limit));
+            Ok(items)
+        }
+        WatchTarget::Ids(ids) => {
+            let mut items = Vec::with_capacity(ids.len());
+            for mid in ids {
+                let result = match mid.platform.as_str() {
+                    "polymarket" => poly.get_by_id(&mid.id).await,
+                    "kalshi" => kal.get_by_id(&mid.id).await,
+                    other => anyhow::bail!("unknown platform: {}", other),
+                };
+                match result {
+                    Ok(item) => items.push(item),
+                    Err(e) => eprintln!("[warn] fetch {}:{} failed: {}", mid.platform, mid.id, e),
+                }
+            }
+            Ok(items)
+        }
+    }
 }
 
 fn chrono_now() -> String {

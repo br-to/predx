@@ -18,4 +18,5 @@ pub struct MarketItem {
 pub trait Market {
     fn name(&self) -> &str;
     async fn search(&self, query: &str) -> Result<Vec<MarketItem>>;
+    async fn get_by_id(&self, id: &str) -> Result<MarketItem>;
 }

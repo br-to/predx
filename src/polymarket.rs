@@ -5,7 +5,20 @@ use serde::Deserialize;
 use crate::market::{Market, MarketItem};
 
 const SEARCH_URL: &str = "https://gamma-api.polymarket.com/public-search";
+const MARKET_URL: &str = "https://gamma-api.polymarket.com/markets";
 const DEFAULT_LIMIT: u32 = 10;
+
+fn to_item(m: PolymarketMarket) -> MarketItem {
+    let probability = parse_yes_price(&m.outcome_prices);
+    MarketItem {
+        id: m.id,
+        platform: "polymarket",
+        title: m.question,
+        probability,
+        volume: m.volume.parse::<f64>().unwrap_or(0.0),
+        active: m.active && !m.closed,
+    }
+}
 
 pub struct Polymarket {
     client: reqwest::Client,
@@ -38,18 +51,16 @@ impl Market for Polymarket {
         let mut items = Vec::new();
         for event in resp.events {
             for market in event.markets {
-                let probability = parse_yes_price(&market.outcome_prices);
-                items.push(MarketItem {
-                    id: market.id,
-                    platform: "polymarket",
-                    title: market.question,
-                    probability,
-                    volume: market.volume.parse::<f64>().unwrap_or(0.0),
-                    active: market.active && !market.closed,
-                });
+                items.push(to_item(market));
             }
         }
         Ok(items)
+    }
+
+    async fn get_by_id(&self, id: &str) -> Result<MarketItem> {
+        let url = format!("{}/{}", MARKET_URL, id);
+        let m: PolymarketMarket = self.client.get(&url).send().await?.json().await?;
+        Ok(to_item(m))
     }
 }
 
