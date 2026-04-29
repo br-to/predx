@@ -22,6 +22,10 @@ predx search "trump" --sort prob
 
 # 解決済み市場も含める
 predx search "trump" --inactive
+
+# JSON/CSV で出力（他ツール連携・パイプ処理向け）
+predx search "trump" --format json
+predx search "trump" --format csv | column -t -s,
 ```
 
 ### 出力例

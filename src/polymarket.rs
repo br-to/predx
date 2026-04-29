@@ -40,6 +40,8 @@ impl Market for Polymarket {
             for market in event.markets {
                 let probability = parse_yes_price(&market.outcome_prices);
                 items.push(MarketItem {
+                    id: market.id,
+                    platform: "polymarket",
                     title: market.question,
                     probability,
                     volume: market.volume.parse::<f64>().unwrap_or(0.0),
@@ -71,6 +73,8 @@ struct Event {
 
 #[derive(Deserialize)]
 struct PolymarketMarket {
+    #[serde(default)]
+    id: String,
     question: String,
     #[serde(rename = "outcomePrices")]
     outcome_prices: String,
