@@ -1,9 +1,12 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use serde::Serialize;
 
 /// 検索結果1件分のデータ
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MarketItem {
+    pub id: String,
+    pub platform: &'static str,
     pub title: String,
     pub probability: f64,
     pub volume: f64,

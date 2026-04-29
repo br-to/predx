@@ -23,6 +23,16 @@ enum SortKey {
     Prob,
 }
 
+#[derive(Clone, ValueEnum)]
+enum OutputFormat {
+    /// Human-readable side-by-side table (default)
+    Table,
+    /// JSON array suitable for piping into jq
+    Json,
+    /// CSV with header row
+    Csv,
+}
+
 #[derive(Subcommand)]
 enum Commands {
     /// Search markets by keyword
@@ -41,6 +51,10 @@ enum Commands {
         /// Include resolved/closed markets
         #[arg(long)]
         inactive: bool,
+
+        /// Output format: table, json, csv
+        #[arg(short, long, default_value = "table")]
+        format: OutputFormat,
     },
 }
 
@@ -101,12 +115,42 @@ fn print_side_by_side(
 }
 
 
+fn print_json(items: &[&MarketItem]) -> anyhow::Result<()> {
+    let out = serde_json::to_string_pretty(items)?;
+    println!("{}", out);
+    Ok(())
+}
+
+fn csv_escape(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') {
+        let escaped = s.replace('"', "\"\"");
+        format!("\"{}\"", escaped)
+    } else {
+        s.to_string()
+    }
+}
+
+fn print_csv(items: &[&MarketItem]) {
+    println!("platform,id,title,probability,volume,active");
+    for item in items {
+        println!(
+            "{},{},{},{},{},{}",
+            item.platform,
+            csv_escape(&item.id),
+            csv_escape(&item.title),
+            item.probability,
+            item.volume,
+            item.active,
+        );
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Search { query, limit, sort, inactive } => {
+        Commands::Search { query, limit, sort, inactive, format } => {
             let limit = limit.clamp(1, 100);
 
             let poly = Polymarket::new();
@@ -127,13 +171,33 @@ async fn main() -> anyhow::Result<()> {
             poly_res.sort_by(comparator);
             kal_res.sort_by(comparator);
 
-            print_side_by_side(
-                poly.name(),
-                &poly_res,
-                kal.name(),
-                &kal_res,
-                limit,
-            );
+            match format {
+                OutputFormat::Table => {
+                    print_side_by_side(
+                        poly.name(),
+                        &poly_res,
+                        kal.name(),
+                        &kal_res,
+                        limit,
+                    );
+                }
+                OutputFormat::Json => {
+                    let items: Vec<&MarketItem> = poly_res
+                        .iter()
+                        .take(limit)
+                        .chain(kal_res.iter().take(limit))
+                        .collect();
+                    print_json(&items)?;
+                }
+                OutputFormat::Csv => {
+                    let items: Vec<&MarketItem> = poly_res
+                        .iter()
+                        .take(limit)
+                        .chain(kal_res.iter().take(limit))
+                        .collect();
+                    print_csv(&items);
+                }
+            }
 
             Ok(())
         }

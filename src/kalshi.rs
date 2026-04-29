@@ -52,6 +52,8 @@ impl Market for Kalshi {
                     format!("{} — {}", contract.event_title, market.yes_subtitle)
                 };
                 items.push(MarketItem {
+                    id: market.ticker,
+                    platform: "kalshi",
                     title,
                     probability,
                     volume,
@@ -77,6 +79,8 @@ struct Contract {
 
 #[derive(Deserialize)]
 struct KalshiMarket {
+    #[serde(default)]
+    ticker: String,
     #[serde(default)]
     last_price: u32,
     #[serde(default)]
