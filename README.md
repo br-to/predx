@@ -26,6 +26,10 @@ predx search "trump" --inactive
 # JSON/CSV で出力（他ツール連携・パイプ処理向け）
 predx search "trump" --format json
 predx search "trump" --format csv | column -t -s,
+
+# 確率変動を定期的に監視（しきい値を超えたら通知）
+predx watch "trump 2028" --interval 60 --threshold 5 --limit 5
+# --duration 30 で30分後に自動終了。Ctrl+Cで即停止
 ```
 
 ### 出力例

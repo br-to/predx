@@ -1,6 +1,7 @@
 mod kalshi;
 mod market;
 mod polymarket;
+mod watch;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
@@ -55,6 +56,28 @@ enum Commands {
         /// Output format: table, json, csv
         #[arg(short, long, default_value = "table")]
         format: OutputFormat,
+    },
+
+    /// Watch markets and report when probability changes exceed a threshold
+    Watch {
+        /// Search query (e.g. "trump 2028")
+        query: String,
+
+        /// Polling interval in seconds
+        #[arg(short, long, default_value_t = 60)]
+        interval: u64,
+
+        /// Change threshold in percentage points (e.g. 5 means 5pp)
+        #[arg(short, long, default_value_t = 5.0)]
+        threshold: f64,
+
+        /// Number of top markets per platform to watch
+        #[arg(short, long, default_value_t = 5)]
+        limit: usize,
+
+        /// Stop watching after N minutes
+        #[arg(short, long)]
+        duration: Option<u64>,
     },
 }
 
@@ -200,6 +223,18 @@ async fn main() -> anyhow::Result<()> {
             }
 
             Ok(())
+        }
+        Commands::Watch { query, interval, threshold, limit, duration } => {
+            let limit = limit.clamp(1, 100);
+            let interval = interval.max(1);
+            watch::run(watch::WatchOptions {
+                query,
+                interval,
+                threshold,
+                limit,
+                duration,
+            })
+            .await
         }
     }
 }
