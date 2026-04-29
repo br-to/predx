@@ -30,6 +30,10 @@ predx search "trump" --format csv | column -t -s,
 # 確率変動を定期的に監視（しきい値を超えたら通知）
 predx watch "trump 2028" --interval 60 --threshold 5 --limit 5
 # --duration 30 で30分後に自動終了。Ctrl+Cで即停止
+
+# Discord / Slack webhook に変動アラートを飛ばす
+predx watch "bitcoin" --threshold 3 --webhook https://discord.com/api/webhooks/...
+predx watch "bitcoin" --threshold 3 --webhook https://hooks.slack.com/services/...
 ```
 
 ### 出力例

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use anyhow::Result;
+use serde_json::json;
 use tokio::time::{Instant, sleep};
 
 use crate::kalshi::Kalshi;
@@ -14,11 +15,38 @@ pub struct WatchOptions {
     pub threshold: f64,
     pub limit: usize,
     pub duration: Option<u64>,
+    pub webhook: Option<String>,
+}
+
+enum WebhookFlavor {
+    Discord,
+    Slack,
+}
+
+fn detect_flavor(url: &str) -> WebhookFlavor {
+    if url.contains("discord.com") || url.contains("discordapp.com") {
+        WebhookFlavor::Discord
+    } else {
+        WebhookFlavor::Slack
+    }
+}
+
+async fn post_webhook(client: &reqwest::Client, url: &str, message: &str) -> Result<()> {
+    let body = match detect_flavor(url) {
+        WebhookFlavor::Discord => json!({ "content": message }),
+        WebhookFlavor::Slack => json!({ "text": message }),
+    };
+    let resp = client.post(url).json(&body).send().await?;
+    if !resp.status().is_success() {
+        anyhow::bail!("webhook returned status {}", resp.status());
+    }
+    Ok(())
 }
 
 pub async fn run(opts: WatchOptions) -> Result<()> {
     let poly = Polymarket::new();
     let kal = Kalshi::new();
+    let http = reqwest::Client::new();
 
     let deadline = opts.duration.map(|m| Instant::now() + Duration::from_secs(m * 60));
     let mut prev: HashMap<String, f64> = HashMap::new();
@@ -30,6 +58,9 @@ pub async fn run(opts: WatchOptions) -> Result<()> {
     );
     if let Some(d) = opts.duration {
         println!("# stop after {} minute(s)", d);
+    }
+    if opts.webhook.is_some() {
+        println!("# webhook notifications enabled");
     }
     println!("# press Ctrl+C to stop");
 
@@ -45,10 +76,16 @@ pub async fn run(opts: WatchOptions) -> Result<()> {
                         let diff = curr - prev_p;
                         if diff.abs() >= opts.threshold {
                             let sign = if diff >= 0.0 { "+" } else { "" };
-                            println!(
+                            let line = format!(
                                 "[{}] [{}] {}  {:.1}% → {:.1}% ({}{:.1}pp)",
                                 now, item.platform, item.title, prev_p, curr, sign, diff,
                             );
+                            println!("{}", line);
+                            if let Some(url) = &opts.webhook
+                                && let Err(e) = post_webhook(&http, url, &line).await
+                            {
+                                eprintln!("[warn] webhook failed: {}", e);
+                            }
                         }
                     } else if tick == 0 {
                         println!(

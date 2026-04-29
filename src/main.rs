@@ -78,6 +78,10 @@ enum Commands {
         /// Stop watching after N minutes
         #[arg(short, long)]
         duration: Option<u64>,
+
+        /// Discord/Slack webhook URL to post threshold alerts
+        #[arg(short, long)]
+        webhook: Option<String>,
     },
 }
 
@@ -224,7 +228,7 @@ async fn main() -> anyhow::Result<()> {
 
             Ok(())
         }
-        Commands::Watch { query, interval, threshold, limit, duration } => {
+        Commands::Watch { query, interval, threshold, limit, duration, webhook } => {
             let limit = limit.clamp(1, 100);
             let interval = interval.max(1);
             watch::run(watch::WatchOptions {
@@ -233,6 +237,7 @@ async fn main() -> anyhow::Result<()> {
                 threshold,
                 limit,
                 duration,
+                webhook,
             })
             .await
         }
