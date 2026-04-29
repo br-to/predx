@@ -82,6 +82,10 @@ enum Commands {
         /// Discord/Slack webhook URL to post threshold alerts
         #[arg(short, long)]
         webhook: Option<String>,
+
+        /// Append alerts and baselines to this file
+        #[arg(long)]
+        log: Option<std::path::PathBuf>,
     },
 }
 
@@ -228,7 +232,7 @@ async fn main() -> anyhow::Result<()> {
 
             Ok(())
         }
-        Commands::Watch { query, interval, threshold, limit, duration, webhook } => {
+        Commands::Watch { query, interval, threshold, limit, duration, webhook, log } => {
             let limit = limit.clamp(1, 100);
             let interval = interval.max(1);
             watch::run(watch::WatchOptions {
@@ -238,6 +242,7 @@ async fn main() -> anyhow::Result<()> {
                 limit,
                 duration,
                 webhook,
+                log,
             })
             .await
         }

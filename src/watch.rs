@@ -1,7 +1,10 @@
 use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::PathBuf;
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde_json::json;
 use tokio::time::{Instant, sleep};
 
@@ -16,6 +19,17 @@ pub struct WatchOptions {
     pub limit: usize,
     pub duration: Option<u64>,
     pub webhook: Option<String>,
+    pub log: Option<PathBuf>,
+}
+
+fn append_log(path: &PathBuf, line: &str) -> Result<()> {
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .with_context(|| format!("failed to open log file {}", path.display()))?;
+    writeln!(file, "{}", line).with_context(|| "failed to write log line")?;
+    Ok(())
 }
 
 enum WebhookFlavor {
@@ -62,6 +76,9 @@ pub async fn run(opts: WatchOptions) -> Result<()> {
     if opts.webhook.is_some() {
         println!("# webhook notifications enabled");
     }
+    if let Some(p) = &opts.log {
+        println!("# logging to {}", p.display());
+    }
     println!("# press Ctrl+C to stop");
 
     loop {
@@ -86,12 +103,23 @@ pub async fn run(opts: WatchOptions) -> Result<()> {
                             {
                                 eprintln!("[warn] webhook failed: {}", e);
                             }
+                            if let Some(path) = &opts.log
+                                && let Err(e) = append_log(path, &line)
+                            {
+                                eprintln!("[warn] log write failed: {}", e);
+                            }
                         }
                     } else if tick == 0 {
-                        println!(
+                        let baseline = format!(
                             "[{}] [{}] {}  baseline {:.1}%",
                             now, item.platform, item.title, curr,
                         );
+                        println!("{}", baseline);
+                        if let Some(path) = &opts.log
+                            && let Err(e) = append_log(path, &baseline)
+                        {
+                            eprintln!("[warn] log write failed: {}", e);
+                        }
                     }
                     prev.insert(key, curr);
                 }
